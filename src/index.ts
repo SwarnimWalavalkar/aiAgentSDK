@@ -1,11 +1,10 @@
 import "dotenv/config";
-import { researchAgent } from "./agents/researchAgent";
-import { queryReformulationAgent } from "./agents/queryReformulationAgent";
+
 import { createFlow } from "./orchestrators/flow";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
-
-export { researchAgent, queryReformulationAgent };
+import { queryReformulationAgent } from "./agents/queryReformulationAgent";
+import { researchAgent } from "./agents/researchAgent";
 
 // const systemPrompt = `You are a helpful assistant. Think step by step. Use the tools provided when necessary. Respond back with your final answer when confident.`;
 
@@ -14,17 +13,16 @@ export { researchAgent, queryReformulationAgent };
 // const problem = `A factory produces 500 toys per day. Each toy requires 3 plastic parts and 2 metal parts. If plastic parts cost $0.50 each and metal parts cost $0.75 each, what is the total cost of parts for one week's production?`;
 
 // const problem = `What is the weather in Tokyo tomorrow?`;
-// const problem = `What is the stock price of the company Jensen Huang is the CEO of?`;
+const problem = `What is the stock price of the company Jensen Huang is the CEO of?`;
 // const problem = `What are the latest developments in quantum computing and their potential impact on cryptography?`;
-const problem = `Who were the sponsors of ETHIndia 2024? And how large was the prize pool?`;
-
+// const problem = `Who were the sponsors of ETHIndia 2024? And how large was the prize pool?`;
 
 console.log(`PROBLEM: ${problem}\n`);
 
 const main = async () => {
   try {
     const flow = createFlow({
-      agents: [queryReformulationAgent(), researchAgent()],
+      agents: [queryReformulationAgent, researchAgent],
     });
 
     const result = await flow.run(problem);

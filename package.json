@@ -6,17 +6,17 @@
     "clean:outputs": "rm -rf ./output"
   },
   "devDependencies": {
-    "@types/node": "22.7.5",
-    "tsx": "4.19.1",
-    "typescript": "5.6.2"
+    "@types/node": "22.10.5",
+    "tsx": "4.19.2",
+    "typescript": "5.7.3"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "0.0.51",
-    "@ai-sdk/openai": "0.0.66",
-    "ai": "3.4.9",
-    "dotenv": "16.4.5",
-    "gpt-tokenizer": "2.4.1",
-    "puppeteer-core": "23.5.1",
-    "zod": "3.23.8"
+    "@ai-sdk/anthropic": "1.0.8",
+    "@ai-sdk/openai": "01.0.18",
+    "ai": "4.0.33",
+    "dotenv": "16.4.7",
+    "gpt-tokenizer": "2.8.1",
+    "puppeteer-core": "24.0.0",
+    "zod": "3.24.1"
   }
 }

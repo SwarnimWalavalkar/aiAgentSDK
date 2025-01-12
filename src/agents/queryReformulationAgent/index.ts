@@ -1,10 +1,9 @@
-import { CoreMessage, generateObject } from "ai";
-import { Agent } from "../types";
 import { MODELS, registry } from "../../lib/registry";
 import { readFileSync } from "fs";
 import { join } from "path";
 
 import { z } from "zod";
+import { Agent } from "../core";
 
 export const QueryReformulationSchema = z.object({
   mainQuery: z.string(),
@@ -15,34 +14,10 @@ export const QueryReformulationSchema = z.object({
 
 export type QueryReformulationOutput = z.infer<typeof QueryReformulationSchema>;
 
-export const queryReformulationAgent = (): Agent<QueryReformulationOutput> => {
-  const model = registry.languageModel(MODELS.OPENAI.GPT_4O_MINI_STRUCTURED);
-  const basePrompt = readFileSync(join(__dirname, "basePrompt.md"), "utf-8");
-
-  return {
-    name: "Query Reformulation Agent",
-    description:
-      "An agent specialized in breaking down and optimizing complex queries into targeted sub-queries",
-    basePrompt,
-    invoke: async (messages: Array<CoreMessage>) => {
-      try {
-        const { object } = await generateObject({
-          model,
-          schema: QueryReformulationSchema,
-          messages: [
-            {
-              role: "system",
-              content: basePrompt,
-            },
-            ...messages,
-          ],
-        });
-
-        return object;
-      } catch (error) {
-        console.error("Error in Query Reformulation Agent:", error);
-        throw error;
-      }
-    },
-  };
-};
+export const queryReformulationAgent = Agent<QueryReformulationOutput>({
+  name: "Query Reformulation Agent",
+  systemPrompt: readFileSync(join(__dirname, "basePrompt.md"), "utf-8"),
+  llm: registry.languageModel(MODELS.OPENAI.GPT_4O_MINI),
+  responseType: "object",
+  responseSchema: QueryReformulationSchema,
+});

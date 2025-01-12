@@ -1,5 +1,5 @@
-import { CoreMessage } from "ai";
-import { Agent } from "../agents/types";
+import { CoreMessage, CoreUserMessage } from "ai";
+import { Agent } from "../agents/core";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 
@@ -34,9 +34,9 @@ const formatMessageContent = (msg: ExtendedCoreMessage): string => {
 
 const createMessage = (
   input: string,
-  currentAgent: Agent,
+  currentAgent: Agent<any>,
   previousMessages: ExtendedCoreMessage[]
-): CoreMessage => {
+): CoreUserMessage => {
   if (previousMessages.length === 0) {
     return { role: "user", content: input };
   }
@@ -46,7 +46,7 @@ const createMessage = (
     content: [
       `Original Input:\n${input}`,
       ...previousMessages.map(formatMessageContent),
-      `Current step: ${currentAgent.name} (${currentAgent.description})`,
+      `Current step: ${currentAgent.name}`,
     ].join("\n\n"),
   };
 };
@@ -54,7 +54,6 @@ const createMessage = (
 const logAgentOutput = async (
   agent: Agent,
   output: string,
-  username: string,
   messageChain: ExtendedCoreMessage[]
 ): Promise<void> => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -63,10 +62,7 @@ const logAgentOutput = async (
     const logDir = join(process.cwd(), "logs");
     await mkdir(logDir, { recursive: true }).catch(() => {});
 
-    const filename = `${username}_${agent.name.replace(
-      /\s+/g,
-      "_"
-    )}_${timestamp}.log`;
+    const filename = `${agent.name.replace(/\s+/g, "_")}_${timestamp}.log`;
     const logPath = join(logDir, filename);
 
     const messageHistory = messageChain
@@ -75,7 +71,6 @@ const logAgentOutput = async (
 
     const logContent = [
       `Agent: ${agent.name}`,
-      `Description: ${agent.description}`,
       `Timestamp: ${new Date().toISOString()}`,
       "---",
       `Message Chain:`,
@@ -95,11 +90,11 @@ const logAgentOutput = async (
 const processAgentStep = async <T extends Agent<any>>(
   agent: T,
   input: string,
-  allMessages: ExtendedCoreMessage[],
-  username: string
+  allMessages: ExtendedCoreMessage[]
 ): Promise<AgentReturnType<T>> => {
   const message = createMessage(input, agent, allMessages);
-  const output = await agent.invoke([...allMessages, message]);
+  const { response } = agent.invoke([message.content as string]);
+  const output = await response;
 
   const updatedMessages = [
     ...allMessages,
@@ -110,7 +105,7 @@ const processAgentStep = async <T extends Agent<any>>(
   const outputString =
     typeof output === "string" ? output : JSON.stringify(output);
 
-  await logAgentOutput(agent, outputString, username, updatedMessages);
+  await logAgentOutput(agent, outputString, updatedMessages);
 
   return output as AgentReturnType<T>;
 };
@@ -122,7 +117,6 @@ export const createFlow = <T extends readonly [Agent<any>, ...Agent<any>[]]>(
     const { agents } = options;
 
     try {
-      const username = initialInput.match(/Username:\s@*([^\n]+)/)?.[1] || "";
       let messages: ExtendedCoreMessage[] = [
         { role: "user", content: initialInput },
       ];
@@ -139,8 +133,7 @@ export const createFlow = <T extends readonly [Agent<any>, ...Agent<any>[]]>(
         const output = await processAgentStep(
           agent,
           chainStateString,
-          messages,
-          username
+          messages
         );
 
         const outputString =
