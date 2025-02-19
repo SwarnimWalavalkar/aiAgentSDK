@@ -1,5 +1,5 @@
 import { CoreMessage, CoreUserMessage } from "ai";
-import { Agent } from "../agents/core";
+import { Agent } from "../lib";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 

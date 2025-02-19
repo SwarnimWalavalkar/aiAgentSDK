@@ -1,11 +1,11 @@
 import "dotenv/config";
 
-import { Agent } from "./agents/core";
+import { Agent } from "../../../packages/core/lib";
 import { tool } from "ai";
 import { z } from "zod";
 import { MODELS } from "./lib/registry";
 import { registry } from "./lib/registry";
-import { InMemoryStore } from "./agents/core/memory/in-memory";
+import { InMemoryStore } from "../../../packages/core/lib/memory/in-memory";
 
 const textTest = async () => {
   const addTool = tool({
