@@ -1,6 +1,6 @@
 import { tool } from "ai";
-import { Agent } from "../agents/core";
 import { z } from "zod";
+import { Agent } from ".";
 
 export const getInvokeAIAgentTool = <T>(agent: Agent<T>) => {
   return tool({

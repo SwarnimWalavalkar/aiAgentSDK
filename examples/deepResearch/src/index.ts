@@ -1,10 +1,10 @@
 import "dotenv/config";
 
-import { createFlow } from "./orchestrators/flow";
+import { createFlow } from "../../../packages/core/orchestrators/flow";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
-import { queryReformulationAgent } from "./agents/queryReformulationAgent";
 import { researchAgent } from "./agents/researchAgent";
+import { queryReformulationAgent } from "./agents/queryReformulationAgent";
 
 // const problem = `A taxi driver earns $9461 per 1-hour work. If he works 12 hours a day and in 1 hour he uses 12-liters petrol with price $134 for 1-liter. How much money does he earn in one day?`;
 // const problem = `A bakery sells cupcakes for $3 each. It costs them $1.25 to make each cupcake. If they sell 150 cupcakes a day for 6 days a week, how much profit do they make in a month (assuming 4 weeks in a month)?`;
