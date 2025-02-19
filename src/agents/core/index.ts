@@ -1,6 +1,6 @@
 import {
   CoreMessage,
-  CoreTool,
+  Tool,
   CoreUserMessage,
   DeepPartial,
   generateObject,
@@ -11,6 +11,7 @@ import {
   TextStreamPart,
 } from "ai";
 import { Schema } from "zod";
+import { BaseMemoryStore } from "./memory";
 
 const DEFAULT_MAX_STEPS = 15;
 
@@ -30,14 +31,14 @@ export interface AgentGenerateResponse<T> {
 export interface AgentStreamResponse<T> {
   stream: AsyncIterableStream<T extends string ? string : DeepPartial<T>>;
   steps: T extends string
-    ? AsyncGenerator<TextStreamPart<Record<string, CoreTool>>, void, unknown>
+    ? AsyncGenerator<TextStreamPart<Record<string, Tool>>, void, unknown>
     : never;
 }
 
 export interface Agent<T = any> {
   name: string;
   systemPrompt: string;
-  tools: Record<string, CoreTool> | undefined;
+  tools: Record<string, Tool> | undefined;
   invoke: (userMessages: Array<string>) => AgentGenerateResponse<T>;
   invokeStream: (userMessages: Array<string>) => AgentStreamResponse<T>;
   appendMemory: (memory: string | Array<string>) => void;
@@ -48,13 +49,12 @@ type BaseAgentOptions<T> = {
   name: string;
   systemPrompt: string;
   llm: LanguageModelV1;
+  memoryStore: BaseMemoryStore;
 } & TypedAgentOptions<T>;
-
-type TypedAgentOptions<T> = TextAgentOptions<T> | ObjectAgentOptions<T>;
 
 type TextAgentOptions<T> = {
   responseType?: "text";
-  tools?: Record<string, CoreTool>;
+  tools?: Record<string, Tool>;
   maxSteps?: number;
 };
 
@@ -62,6 +62,8 @@ type ObjectAgentOptions<T> = {
   responseType: "object" | "array" | "enum";
   responseSchema: Schema<T>;
 };
+
+type TypedAgentOptions<T> = TextAgentOptions<T> | ObjectAgentOptions<T>;
 
 type AgentOptions<T> = BaseAgentOptions<T> & TypedAgentOptions<T>;
 
@@ -75,24 +77,12 @@ export function Agent<T = string>({
   name,
   systemPrompt,
   llm,
+  memoryStore,
   responseType = "text",
   ...restAgentOpts
 }: AgentOptions<T>): Agent<T> {
-  const memory: Array<CoreMessage> = [];
   let resolveStep: ((step: AgentStep) => void) | null = null;
   let rejectStep: ((error: Error) => void) | null = null;
-
-  const appendMemory = (memoryToAppend: string | Array<string>) => {
-    if (typeof memoryToAppend === "string") {
-      memory.push({ role: "user", content: memoryToAppend });
-    } else {
-      memory.push(
-        ...memoryToAppend.map(
-          (m) => ({ role: "user", content: m } as CoreUserMessage)
-        )
-      );
-    }
-  };
 
   async function* createStepGenerator(): AsyncGenerator<AgentStep, void> {
     try {
@@ -117,10 +107,10 @@ export function Agent<T = string>({
 
   const invoke = (userMessages: Array<string>) => {
     const messages = userMessages.map(
-      (m) => ({ role: "user", content: m } as CoreUserMessage)
+      (m) => ({ role: "user", content: m } as CoreMessage)
     );
 
-    memory.push(...messages);
+    memoryStore.appendMemory(messages);
 
     if (responseType === "text") {
       const { tools, maxSteps } = restAgentOpts as TextAgentOptions<T>;
@@ -131,15 +121,14 @@ export function Agent<T = string>({
         maxSteps: maxSteps ?? DEFAULT_MAX_STEPS,
         messages: [
           { role: "system", content: systemPrompt },
-          ...memory,
-          ...messages,
+          ...memoryStore.getMemory(),
         ],
         onStepFinish(step) {
           resolveStep?.(step);
         },
       }).then((response) => {
         rejectStep?.(new ResponseCompletedError());
-        memory.push(...response.response.messages);
+        memoryStore.appendMemory(response.response.messages);
 
         return response.text as T;
       });
@@ -153,12 +142,11 @@ export function Agent<T = string>({
         schema: responseSchema,
         messages: [
           { role: "system", content: systemPrompt },
-          ...memory,
-          ...messages,
+          ...memoryStore.getMemory(),
         ],
       }).then((response) => {
         rejectStep?.(new ResponseCompletedError());
-        memory.push({
+        memoryStore.appendMemory({
           role: "assistant",
           content: JSON.stringify(response.object),
         });
@@ -175,7 +163,7 @@ export function Agent<T = string>({
       (m) => ({ role: "user", content: m } as CoreUserMessage)
     );
 
-    memory.push(...messages);
+    memoryStore.appendMemory(messages);
 
     if (responseType === "text") {
       const { tools, maxSteps } = restAgentOpts as TextAgentOptions<T>;
@@ -188,15 +176,14 @@ export function Agent<T = string>({
         maxSteps: maxSteps ?? DEFAULT_MAX_STEPS,
         messages: [
           { role: "system", content: systemPrompt },
-          ...memory,
-          ...messages,
+          ...memoryStore.getMemory(),
         ],
         onStepFinish(step) {
           resolveStep?.(step);
         },
         onFinish(event) {
           rejectStep?.(new ResponseCompletedError());
-          memory.push(...event.response.messages);
+          memoryStore.appendMemory(event.response.messages);
         },
       });
 
@@ -220,7 +207,7 @@ export function Agent<T = string>({
               }
             },
           })
-        ) as AsyncIterable<TextStreamPart<Record<string, CoreTool>>>,
+        ) as AsyncIterable<TextStreamPart<Record<string, Tool>>>,
       };
     } else {
       const { responseSchema } = restAgentOpts as ObjectAgentOptions<T>;
@@ -230,12 +217,11 @@ export function Agent<T = string>({
         schema: responseSchema,
         messages: [
           { role: "system", content: systemPrompt },
-          ...memory,
-          ...messages,
+          ...memoryStore.getMemory(),
         ],
         onFinish(event) {
           rejectStep?.(new ResponseCompletedError());
-          memory.push({
+          memoryStore.appendMemory({
             role: "assistant",
             content: JSON.stringify(event.object),
           });
@@ -252,9 +238,9 @@ export function Agent<T = string>({
     name,
     systemPrompt,
     tools: (restAgentOpts as TextAgentOptions<T>).tools ?? undefined,
-    appendMemory,
+    appendMemory: memoryStore.appendMemory,
     invoke: invoke as Agent<T>["invoke"],
     invokeStream: invokeStream as Agent<T>["invokeStream"],
-    getMemory: () => memory,
+    getMemory: memoryStore.getMemory,
   };
 }

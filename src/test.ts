@@ -5,6 +5,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { MODELS } from "./lib/registry";
 import { registry } from "./lib/registry";
+import { InMemoryStore } from "./agents/core/memory/in-memory";
 
 const textTest = async () => {
   const addTool = tool({
@@ -33,6 +34,7 @@ const textTest = async () => {
     name: "Math Agent",
     systemPrompt: "You are a helpful agent that can help with math problems.",
     llm: registry.languageModel(MODELS.OPENAI.GPT_4O_MINI),
+    memoryStore: InMemoryStore(),
     tools: {
       add: addTool,
       multiply: multiplyTool,
@@ -58,6 +60,10 @@ const textTest = async () => {
   for await (const chunk of stream) {
     process.stdout.write(chunk);
   }
+
+  console.log("============================================");
+  console.log("MEMORY:\n");
+  console.log(JSON.stringify(mathAgent.getMemory(), null, 2));
 };
 
 const objectTest = async () => {
@@ -69,6 +75,7 @@ const objectTest = async () => {
     name: "Math Agent",
     systemPrompt: "You are a helpful agent that can help with math problems.",
     llm: registry.languageModel(MODELS.OPENAI.GPT_4O_MINI),
+    memoryStore: InMemoryStore(),
     responseType: "object",
     responseSchema: responseSchema,
   });
@@ -88,11 +95,14 @@ const objectTest = async () => {
   console.log("============================================");
   console.log("RESULT:\n");
   console.log(await response);
+  console.log("============================================");
+  console.log("MEMORY:\n");
+  console.log(JSON.stringify(mathAgent.getMemory(), null, 2));
 };
 
 const main = async () => {
-  // await textTest();
-  await objectTest();
+  await textTest();
+  // await objectTest();
 };
 
 main();

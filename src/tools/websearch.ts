@@ -46,7 +46,7 @@ export const webSearch = tool({
           );
 
           if (response.status === 200) {
-            const data = await response.json();
+            const data = (await response.json()) as any;
             return data.web.results;
           }
 
@@ -71,8 +71,8 @@ export const webSearch = tool({
           lastError = error as Error;
 
           if (
-            !error.message.includes("429") &&
-            !error.message.includes("network")
+            !lastError.message.includes("429") &&
+            !lastError.message.includes("network")
           ) {
             throw error;
           }
