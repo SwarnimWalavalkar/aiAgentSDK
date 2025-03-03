@@ -1,21 +1,26 @@
 {
   "name": "deep-research-example-agent",
-  "packageManager": "pnpm@9.12.3",
+  "packageManager": "pnpm@10.5.2",
   "scripts": {
     "start": "tsx src/index.ts",
-    "check": "tsc"
+    "check": "tsc",
+    "clean:logs": "rm logs/*",
+    "clean:outputs": "rm output/*"
   },
   "devDependencies": {
-    "@types/node": "22.13.4",
+    "@types/node": "22.13.9",
     "tsx": "4.19.3",
-    "typescript": "5.7.3"
+    "typescript": "5.8.2"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "1.1.9",
-    "@ai-sdk/openai": "1.1.13",
-    "ai": "4.1.42",
+    "@ai-sdk/anthropic": "1.1.13",
+    "@ai-sdk/openai": "1.2.0",
+    "@tavily/core": "0.3.1",
+    "ai": "4.1.50",
     "dotenv": "16.4.7",
+    "exa-js": "1.4.10",
     "gpt-tokenizer": "2.8.1",
-    "zod": "3.24.2"
+    "zod": "3.24.2",
+    "zod-to-json-schema": "3.24.3"
   }
 }

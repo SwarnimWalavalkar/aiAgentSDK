@@ -1,11 +1,11 @@
 import "dotenv/config";
 
-import { Agent } from "../../../packages/core/lib";
+import { Agent } from "../../../../packages/core/lib";
 import { tool } from "ai";
 import { z } from "zod";
-import { MODELS } from "./lib/registry";
-import { registry } from "./lib/registry";
-import { InMemoryStore } from "../../../packages/core/lib/memory/in-memory";
+import { MODELS } from "../lib/registry";
+import { registry } from "../lib/registry";
+import { InMemoryStore } from "../../../../packages/core/lib/memory/in-memory";
 
 const textTest = async () => {
   const addTool = tool({
@@ -32,6 +32,7 @@ const textTest = async () => {
 
   const mathAgent = Agent<string>({
     name: "Math Agent",
+    description: "You are a helpful agent that can help with math problems.",
     systemPrompt: "You are a helpful agent that can help with math problems.",
     llm: registry.languageModel(MODELS.OPENAI.GPT_4O_MINI),
     memoryStore: InMemoryStore(),
@@ -73,6 +74,7 @@ const objectTest = async () => {
 
   const mathAgent = Agent<z.infer<typeof responseSchema>>({
     name: "Math Agent",
+    description: "You are a helpful agent that can help with math problems.",
     systemPrompt: "You are a helpful agent that can help with math problems.",
     llm: registry.languageModel(MODELS.OPENAI.GPT_4O_MINI),
     memoryStore: InMemoryStore(),

@@ -2,12 +2,12 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI, openai as defaultOpenAI } from "@ai-sdk/openai";
 import {
   experimental_createProviderRegistry as createProviderRegistry,
-  experimental_customProvider as customProvider,
+  customProvider,
 } from "ai";
 
 export const MODELS = {
   ANTHROPIC: {
-    SONNET: "anthropic:claude-3-5-sonnet-20241022",
+    SONNET: "anthropic:claude-3-7-sonnet-20250219",
   },
   OPENAI: {
     GPT_4O_MINI: "openai:gpt-4o-mini-2024-07-18",
