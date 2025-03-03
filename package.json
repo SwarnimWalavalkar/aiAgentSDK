@@ -1,16 +1,17 @@
 {
   "name": "ai-agent-sdk",
   "version": "0.0.1",
-  "packageManager": "pnpm@9.12.3",
+  "packageManager": "pnpm@10.5.2",
   "scripts": {
     "check": "tsc"
   },
   "devDependencies": {
-    "@types/node": "22.13.4",
-    "typescript": "5.7.3"
+    "@types/node": "22.13.9",
+    "typescript": "5.8.2"
   },
   "dependencies": {
-    "ai": "4.1.42",
-    "zod": "3.24.2"
+    "ai": "4.1.50",
+    "zod": "3.24.2",
+    "zod-to-json-schema": "3.24.3"
   }
 }

@@ -11,7 +11,8 @@ import {
   TextStreamPart,
 } from "ai";
 import { Schema } from "zod";
-import { BaseMemoryStore } from "./memory";
+import { BaseMemoryStore, Memory } from "./memory";
+import { sanitizeAgentName } from "./utils/sanitizeAgentName";
 
 const DEFAULT_MAX_STEPS = 15;
 
@@ -20,6 +21,13 @@ class ResponseCompletedError extends Error {
     super("Response completed");
   }
 }
+
+type StringOrMessage = string | CoreMessage;
+
+export type AgentMessage = CoreMessage & {
+  prompt: string;
+  agentName: string;
+};
 
 type AsyncIterableStream<T> = AsyncIterable<T> & ReadableStream<T>;
 
@@ -36,17 +44,23 @@ export interface AgentStreamResponse<T> {
 }
 
 export interface Agent<T = any> {
+  id: string;
   name: string;
+  description: string;
   systemPrompt: string;
-  tools: Record<string, Tool> | undefined;
-  invoke: (userMessages: Array<string>) => AgentGenerateResponse<T>;
-  invokeStream: (userMessages: Array<string>) => AgentStreamResponse<T>;
-  appendMemory: (memory: string | Array<string>) => void;
+  tools?: Record<string, Tool>;
+  responseSchema?: Schema<T>;
+  appendTools: (tools: Record<string, Tool>) => void;
+  invoke: (input: Array<StringOrMessage>) => AgentGenerateResponse<T>;
+  invokeStream: (input: Array<StringOrMessage>) => AgentStreamResponse<T>;
+  appendMemory: (memory: StringOrMessage | Array<StringOrMessage>) => void;
   getMemory: () => Array<CoreMessage>;
 }
 
 type BaseAgentOptions<T> = {
+  id?: string;
   name: string;
+  description: string;
   systemPrompt: string;
   llm: LanguageModelV1;
   memoryStore: BaseMemoryStore;
@@ -74,7 +88,9 @@ type AgentStep = Parameters<
 >[0];
 
 export function Agent<T = string>({
+  id,
   name,
+  description,
   systemPrompt,
   llm,
   memoryStore,
@@ -83,6 +99,15 @@ export function Agent<T = string>({
 }: AgentOptions<T>): Agent<T> {
   let resolveStep: ((step: AgentStep) => void) | null = null;
   let rejectStep: ((error: Error) => void) | null = null;
+
+  let tools = (restAgentOpts as TextAgentOptions<T>).tools;
+
+  const appendTools = (toolsToAppend: Record<string, Tool>) => {
+    tools = {
+      ...tools,
+      ...toolsToAppend,
+    };
+  };
 
   async function* createStepGenerator(): AsyncGenerator<AgentStep, void> {
     try {
@@ -105,15 +130,15 @@ export function Agent<T = string>({
     }
   }
 
-  const invoke = (userMessages: Array<string>) => {
-    const messages = userMessages.map(
-      (m) => ({ role: "user", content: m } as CoreMessage)
-    );
+  const invoke = (input: Array<StringOrMessage>) => {
+    const messages = Array.isArray(input)
+      ? input.map(transformMessage)
+      : [transformMessage(input)];
 
     memoryStore.appendMemory(messages);
 
     if (responseType === "text") {
-      const { tools, maxSteps } = restAgentOpts as TextAgentOptions<T>;
+      const { maxSteps } = restAgentOpts as TextAgentOptions<T>;
 
       const response = generateText({
         model: llm,
@@ -158,10 +183,10 @@ export function Agent<T = string>({
     }
   };
 
-  const invokeStream = (userMessages: Array<string>) => {
-    const messages = userMessages.map(
-      (m) => ({ role: "user", content: m } as CoreUserMessage)
-    );
+  const invokeStream = (input: Array<StringOrMessage>) => {
+    const messages = Array.isArray(input)
+      ? input.map(transformMessage)
+      : [transformMessage(input)];
 
     memoryStore.appendMemory(messages);
 
@@ -236,11 +261,24 @@ export function Agent<T = string>({
 
   return {
     name,
+    description,
     systemPrompt,
-    tools: (restAgentOpts as TextAgentOptions<T>).tools ?? undefined,
+    appendTools,
+    tools,
+    id: id ?? sanitizeAgentName(name),
+    responseSchema: (restAgentOpts as ObjectAgentOptions<T>).responseSchema,
     appendMemory: memoryStore.appendMemory,
     invoke: invoke as Agent<T>["invoke"],
     invokeStream: invokeStream as Agent<T>["invokeStream"],
     getMemory: memoryStore.getMemory,
   };
 }
+
+/**
+ * Helper that transforms a memory item into a CoreMessage.
+ *
+ * - If the item is a string, we convert it into a CoreUserMessage.
+ * - If it's already a CoreMessage, we return it as-is.
+ */
+export const transformMessage = (m: StringOrMessage): CoreMessage =>
+  typeof m === "string" ? { role: "user", content: m } : m;

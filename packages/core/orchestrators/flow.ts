@@ -1,7 +1,12 @@
-import { CoreMessage, CoreUserMessage } from "ai";
-import { Agent } from "../lib";
+import { CoreMessage } from "ai";
+import { Agent, AgentMessage } from "../lib";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
+import {
+  formatMessageContent,
+  createMessage,
+  stringifyIfObject,
+} from "./utils/messages";
 
 type AgentReturnType<T> = T extends Agent<infer R> ? R : never;
 
@@ -16,45 +21,10 @@ type FlowOptions<T extends readonly [Agent<any>, ...Agent<any>[]]> = {
   agents: T;
 };
 
-type ExtendedCoreMessage = CoreMessage & {
-  agentName?: string;
-};
-
-const stringifyIfObject = (value: unknown): string => {
-  if (typeof value === "object" && value !== null) {
-    return JSON.stringify(value);
-  }
-  return String(value);
-};
-
-const formatMessageContent = (msg: ExtendedCoreMessage): string => {
-  const agentInfo = msg.agentName ? ` (${msg.agentName})` : "";
-  return `${msg.role}${agentInfo}:\n${stringifyIfObject(msg.content)}`;
-};
-
-const createMessage = (
-  input: string,
-  currentAgent: Agent<any>,
-  previousMessages: ExtendedCoreMessage[]
-): CoreUserMessage => {
-  if (previousMessages.length === 0) {
-    return { role: "user", content: input };
-  }
-
-  return {
-    role: "user",
-    content: [
-      `Original Input:\n${input}`,
-      ...previousMessages.map(formatMessageContent),
-      `Current step: ${currentAgent.name}`,
-    ].join("\n\n"),
-  };
-};
-
 const logAgentOutput = async (
   agent: Agent,
   output: string,
-  messageChain: ExtendedCoreMessage[]
+  messageChain: AgentMessage[]
 ): Promise<void> => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
@@ -90,7 +60,7 @@ const logAgentOutput = async (
 const processAgentStep = async <T extends Agent<any>>(
   agent: T,
   input: string,
-  allMessages: ExtendedCoreMessage[]
+  allMessages: AgentMessage[]
 ): Promise<AgentReturnType<T>> => {
   const message = createMessage(input, agent, allMessages);
   const { response } = agent.invoke([message.content as string]);
@@ -100,7 +70,7 @@ const processAgentStep = async <T extends Agent<any>>(
     ...allMessages,
     message,
     { role: "assistant", content: output, agentName: agent.name },
-  ] as ExtendedCoreMessage[];
+  ] as AgentMessage[];
 
   const outputString =
     typeof output === "string" ? output : JSON.stringify(output);
@@ -117,18 +87,20 @@ export const createFlow = <T extends readonly [Agent<any>, ...Agent<any>[]]>(
     const { agents } = options;
 
     try {
-      let messages: ExtendedCoreMessage[] = [
-        { role: "user", content: initialInput },
+      let messages: AgentMessage[] = [
+        {
+          role: "user",
+          content: initialInput,
+          prompt: initialInput,
+          agentName: "__user__",
+        },
       ];
 
       let chainState: LastAgentReturnType<T> =
         initialInput as LastAgentReturnType<T>;
 
       for (const agent of agents) {
-        const chainStateString =
-          typeof chainState === "string"
-            ? chainState
-            : JSON.stringify(chainState);
+        const chainStateString = stringifyIfObject(chainState);
 
         const output = await processAgentStep(
           agent,
@@ -143,6 +115,7 @@ export const createFlow = <T extends readonly [Agent<any>, ...Agent<any>[]]>(
           role: "assistant",
           content: outputString,
           agentName: agent.name,
+          prompt: chainStateString,
         });
 
         chainState = output as LastAgentReturnType<T>;
