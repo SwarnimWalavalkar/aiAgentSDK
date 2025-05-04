@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { CoreMessage, streamText } from "ai";
 import * as readline from "node:readline/promises";
-import { registry, MODELS } from "./lib/registry";
+import { registry, MODELS } from "../lib/registry";
 
 const terminal = readline.createInterface({
   input: process.stdin,

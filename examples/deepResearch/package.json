@@ -2,7 +2,8 @@
   "name": "deep-research-example-agent",
   "packageManager": "pnpm@10.5.2",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start:orchestra": "tsx src/orchestra.ts",
+    "start:flow": "tsx src/flow.ts",
     "check": "tsc",
     "clean:logs": "rm logs/*",
     "clean:outputs": "rm output/*"

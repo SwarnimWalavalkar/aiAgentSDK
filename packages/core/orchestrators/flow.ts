@@ -1,4 +1,3 @@
-import { CoreMessage } from "ai";
 import { Agent, AgentMessage } from "../lib";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
@@ -8,17 +7,30 @@ import {
   stringifyIfObject,
 } from "./utils/messages";
 
-type AgentReturnType<T> = T extends Agent<infer R> ? R : never;
-
-type LastAgentReturnType<T extends readonly Agent<any>[]> = T extends readonly [
-  ...any[],
-  infer Last extends Agent<any>
-]
-  ? AgentReturnType<Last>
+type AgentReturnType<T> = T extends Agent<infer R>
+  ? R
+  : T extends Flow<infer R>
+  ? R
   : never;
 
-type FlowOptions<T extends readonly [Agent<any>, ...Agent<any>[]]> = {
+type LastAgentReturnType<T extends readonly (Agent<any> | Flow<any>)[]> =
+  T extends readonly [...any[], infer Last extends Agent<any> | Flow<any>]
+    ? AgentReturnType<Last>
+    : never;
+
+type FlowOptions<
+  T extends readonly [Agent<any> | Flow<any>, ...(Agent<any> | Flow<any>)[]]
+> = {
   agents: T;
+  repeat?: {
+    times?: number;
+    until?: (output: LastAgentReturnType<T>) => boolean | Promise<boolean>;
+    maxIterations?: number;
+  };
+};
+
+export type Flow<T> = {
+  run: (initialInput: string) => Promise<T>;
 };
 
 const logAgentOutput = async (
@@ -80,48 +92,99 @@ const processAgentStep = async <T extends Agent<any>>(
   return output as AgentReturnType<T>;
 };
 
-export const createFlow = <T extends readonly [Agent<any>, ...Agent<any>[]]>(
+const processStep = async <T>(
+  agentOrFlow: Agent<T> | Flow<T>,
+  input: string,
+  allMessages: AgentMessage[]
+): Promise<T> => {
+  if ("run" in agentOrFlow) {
+    return await agentOrFlow.run(input);
+  }
+
+  return await processAgentStep(agentOrFlow, input, allMessages);
+};
+
+export const createFlow = <
+  T extends readonly [Agent<any> | Flow<any>, ...(Agent<any> | Flow<any>)[]]
+>(
   options: FlowOptions<T>
 ) => {
   const run = async (initialInput: string): Promise<LastAgentReturnType<T>> => {
-    const { agents } = options;
+    const { agents, repeat } = options;
 
     try {
-      let messages: AgentMessage[] = [
-        {
-          role: "user",
-          content: initialInput,
-          prompt: initialInput,
-          agentName: "__user__",
-        },
-      ];
-
-      let chainState: LastAgentReturnType<T> =
+      let result: LastAgentReturnType<T> =
         initialInput as LastAgentReturnType<T>;
+      let iterationCount = 0;
+      const maxIterations = repeat?.maxIterations ?? 100;
 
-      for (const agent of agents) {
-        const chainStateString = stringifyIfObject(chainState);
+      const timesToRun = repeat?.times ?? 1;
 
-        const output = await processAgentStep(
-          agent,
-          chainStateString,
-          messages
-        );
+      const executeFlow = async (
+        input: string
+      ): Promise<LastAgentReturnType<T>> => {
+        let messages: AgentMessage[] = [
+          {
+            role: "user",
+            content: input,
+            prompt: input,
+            agentName: "__user__",
+          },
+        ];
 
-        const outputString =
-          typeof output === "string" ? output : JSON.stringify(output);
+        let chainState: LastAgentReturnType<T> =
+          input as LastAgentReturnType<T>;
 
-        messages.push({
-          role: "assistant",
-          content: outputString,
-          agentName: agent.name,
-          prompt: chainStateString,
-        });
+        for (const agentOrFlow of agents) {
+          const chainStateString = stringifyIfObject(chainState);
 
-        chainState = output as LastAgentReturnType<T>;
+          const output = await processStep(
+            agentOrFlow,
+            chainStateString,
+            messages
+          );
+
+          const outputString =
+            typeof output === "string" ? output : JSON.stringify(output);
+
+          if (!("run" in agentOrFlow)) {
+            messages.push({
+              role: "assistant",
+              content: outputString,
+              agentName: (agentOrFlow as Agent<any>).name,
+              prompt: chainStateString,
+            });
+          }
+
+          chainState = output as LastAgentReturnType<T>;
+        }
+
+        return chainState;
+      };
+
+      if (repeat?.until) {
+        do {
+          result = await executeFlow(
+            iterationCount === 0 ? initialInput : stringifyIfObject(result)
+          );
+          iterationCount++;
+
+          if (iterationCount >= maxIterations) {
+            console.warn(
+              `Flow reached maximum iterations (${maxIterations}) with 'until' condition`
+            );
+            break;
+          }
+        } while (await repeat.until(result));
+      } else {
+        for (let i = 0; i < timesToRun; i++) {
+          result = await executeFlow(
+            i === 0 ? initialInput : stringifyIfObject(result)
+          );
+        }
       }
 
-      return chainState;
+      return result;
     } catch (error) {
       console.error("Flow execution failed:", error);
       throw error;
